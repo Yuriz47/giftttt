@@ -1,0 +1,1369 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>心意盲盒 - 猜猜我要送你什么</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --pink: #FF6B9D;
+            --blue: #4ECDC4;
+            --dark: #2D3436;
+            --cream: #FFF5F5;
+        }
+        
+        * {
+            font-family: 'Noto Sans SC', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #FFEEF8 0%, #E8F8F5 100%);
+            overflow-x: hidden;
+        }
+        
+        .hand-drawn {
+            border: 3px solid var(--dark);
+            border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+            box-shadow: 4px 4px 0px rgba(45, 52, 54, 0.1);
+        }
+        
+        .hand-drawn-pink {
+            border: 3px solid var(--pink);
+            border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+        }
+        
+        .hand-drawn-blue {
+            border: 3px solid var(--blue);
+            border-radius: 255px 15px 225px 15px / 15px 225px 15px 255px;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-10px) rotate(1deg); }
+        }
+        
+        @keyframes float-delayed {
+            0%, 100% { transform: translateY(0px) rotate(0deg); }
+            50% { transform: translateY(-8px) rotate(-1deg); }
+        }
+        
+        @keyframes wiggle {
+            0%, 100% { transform: rotate(-2deg); }
+            50% { transform: rotate(2deg); }
+        }
+        
+        .float-anim {
+            animation: float 4s ease-in-out infinite;
+        }
+        
+        .float-anim-delayed {
+            animation: float-delayed 5s ease-in-out infinite;
+            animation-delay: 1s;
+        }
+        
+        .wiggle-anim {
+            animation: wiggle 3s ease-in-out infinite;
+        }
+        
+        .btn-press:active {
+            transform: scale(0.95) translateY(2px);
+            box-shadow: 2px 2px 0px rgba(45, 52, 54, 0.1);
+        }
+        
+        .parallax-bg {
+            position: fixed;
+            pointer-events: none;
+            z-index: -1;
+            opacity: 0.6;
+        }
+        
+        .option-card {
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            cursor: pointer;
+        }
+        
+        .option-card:hover {
+            transform: translateY(-5px) rotate(1deg);
+            box-shadow: 6px 6px 0px rgba(255, 107, 157, 0.3);
+        }
+        
+        .option-card.selected {
+            background: linear-gradient(135deg, #FFEEF8 0%, #FFF0F5 100%);
+            border-color: var(--pink);
+            transform: scale(1.02);
+            box-shadow: 0 0 0 4px rgba(255, 107, 157, 0.2);
+        }
+        
+        .doodle {
+            position: absolute;
+            pointer-events: none;
+        }
+        
+        .code-input {
+            width: 50px;
+            height: 60px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: 900;
+            border: 3px solid var(--dark);
+            border-radius: 12px;
+            background: white;
+            margin: 0 4px;
+            transition: all 0.2s;
+        }
+        
+        .code-input:focus {
+            border-color: var(--pink);
+            transform: scale(1.1);
+            outline: none;
+            box-shadow: 0 0 0 4px rgba(255, 107, 157, 0.2);
+        }
+        
+        .tab-active {
+            background: var(--pink);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 0 rgba(255, 107, 157, 0.3);
+        }
+        
+        @keyframes popIn {
+            0% { transform: scale(0) rotate(-10deg); opacity: 0; }
+            70% { transform: scale(1.1) rotate(3deg); }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        
+        .result-pop {
+            animation: popIn 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) forwards;
+        }
+        
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: var(--pink);
+            border-radius: 10px;
+        }
+        
+        .feedback-tag {
+            transition: all 0.2s;
+            cursor: pointer;
+        }
+        
+        .feedback-tag:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 0 rgba(0,0,0,0.1);
+        }
+        
+        .feedback-tag.selected {
+            background: var(--blue);
+            color: white;
+            transform: scale(1.05);
+        }
+        
+        @keyframes twinkle {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        
+        .star {
+            animation: twinkle 2s ease-in-out infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .loading-dot {
+            animation: bounce 0.6s ease-in-out infinite;
+        }
+        
+        .loading-dot:nth-child(2) { animation-delay: 0.1s; }
+        .loading-dot:nth-child(3) { animation-delay: 0.2s; }
+        
+        .hide-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .hide-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+
+        .tag-pill {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            margin: 2px;
+        }
+
+        .price-tag {
+            background: linear-gradient(135deg, #FFEEF8 0%, #FFF0F5 100%);
+            color: #FF6B9D;
+            border: 2px solid #FF6B9D;
+        }
+
+        .feature-tag {
+            background: linear-gradient(135deg, #E8F8F5 0%, #F0F9FF 100%);
+            color: #4ECDC4;
+            border: 2px solid #4ECDC4;
+        }
+
+        .match-tag {
+            background: linear-gradient(135deg, #FFF9E6 0%, #FFF5E6 100%);
+            color: #FF9F43;
+            border: 2px solid #FF9F43;
+        }
+
+        .share-btn {
+            transition: all 0.3s;
+        }
+        .share-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: rgba(45, 52, 54, 0.9);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 50px;
+            font-weight: bold;
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+        .toast.show {
+            transform: translateX(-50%) translateY(0);
+            opacity: 1;
+        }
+
+        .sync-status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 100;
+            transition: all 0.3s;
+        }
+        .sync-status.online {
+            background: #4ECDC4;
+            color: white;
+        }
+        .sync-status.offline {
+            background: #FF6B9D;
+            color: white;
+        }
+        .sync-status.syncing {
+            background: #FFD93D;
+            color: #333;
+        }
+    </style>
+</head>
+<body class="text-gray-800 min-h-screen relative">
+
+    <!-- 同步状态指示器 -->
+    <div id="sync-status" class="sync-status offline">离线模式</div>
+
+    <div class="parallax-bg top-20 left-10 text-6xl float-anim" data-speed="0.5">✨</div>
+    <div class="parallax-bg top-40 right-20 text-4xl float-anim-delayed" data-speed="0.3">🎁</div>
+    <div class="parallax-bg bottom-40 left-20 text-5xl wiggle-anim" data-speed="0.7">🦋</div>
+    <div class="parallax-bg top-60 left-1/2 text-3xl float-anim" data-speed="0.4" style="animation-delay: 2s">⭐</div>
+    <div class="parallax-bg bottom-20 right-10 text-6xl float-anim-delayed" data-speed="0.6">🌸</div>
+
+    <div id="toast" class="toast"></div>
+
+    <div id="app" class="max-w-md mx-auto min-h-screen p-4 pb-20 relative z-10">
+        
+        <header class="text-center mb-8 pt-8">
+            <div class="inline-block relative">
+                <h1 class="text-4xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-500 to-blue-400 float-anim" style="filter: drop-shadow(2px 2px 0px rgba(0,0,0,0.1));">
+                    心意盲盒
+                </h1>
+                <div class="absolute -top-4 -right-8 text-2xl star">💝</div>
+                <div class="absolute -bottom-2 -left-6 text-xl star" style="animation-delay: 0.5s">✨</div>
+            </div>
+            <p class="mt-2 text-gray-600 font-bold text-sm tracking-widest">GIFT MYSTERY BOX</p>
+        </header>
+
+        <main id="main-content"></main>
+
+    </div>
+
+    <nav id="bottom-nav" class="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-md border-t-4 border-pink-300 p-4 z-50 hidden">
+        <div class="max-w-md mx-auto flex justify-around">
+            <button onclick="showHome()" class="flex flex-col items-center gap-1 text-gray-400 hover:text-pink-500 transition-colors">
+                <span class="text-2xl">🏠</span>
+                <span class="text-xs font-bold">首页</span>
+            </button>
+            <button onclick="showMyRooms()" class="flex flex-col items-center gap-1 text-gray-400 hover:text-pink-500 transition-colors">
+                <span class="text-2xl">🎁</span>
+                <span class="text-xs font-bold">我的房间</span>
+            </button>
+            <button onclick="showCreateRoom()" class="flex flex-col items-center gap-1 text-gray-400 hover:text-pink-500 transition-colors">
+                <span class="text-2xl">✨</span>
+                <span class="text-xs font-bold">创建</span>
+            </button>
+        </div>
+    </nav>
+
+    <script>
+        // ==================== Firebase 配置 ====================
+        // 请替换为你自己的 Firebase 配置
+       const firebaseConfig = {
+  apiKey: "AIzaSyBpIT_Giv-SgHYWXUS0Gq35bwf1Z4Te3XA",
+  authDomain: "giftttt-b846a.firebaseapp.com",
+  databaseURL: "https://giftttt-b846a-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "giftttt-b846a",
+  storageBucket: "giftttt-b846a.firebasestorage.app",
+  messagingSenderId: "256749290824",
+  appId: "1:256749290824:web:ac37aae0b6742186dd9f7d",
+  measurementId: "G-PKET9NYP3D"
+};
+
+        // 初始化 Firebase
+        let db;
+        let isOnline = false;
+        
+        try {
+            firebase.initializeApp(firebaseConfig);
+            db = firebase.database();
+            isOnline = true;
+            updateSyncStatus('online');
+        } catch (e) {
+            console.error('Firebase 初始化失败，使用本地模式', e);
+            updateSyncStatus('offline');
+        }
+
+        function updateSyncStatus(status) {
+            const el = document.getElementById('sync-status');
+            el.className = 'sync-status ' + status;
+            if (status === 'online') el.textContent = '实时同步中';
+            else if (status === 'offline') el.textContent = '离线模式';
+            else if (status === 'syncing') el.textContent = '同步中...';
+        }
+
+        // ==================== 数据存储层 ====================
+        const DataStore = {
+            // 本地缓存
+            localRooms: JSON.parse(localStorage.getItem('giftRooms') || '[]'),
+            currentRoom: null,
+
+            // 保存房间到云端和本地
+            async saveRoom(room) {
+                // 本地保存
+                const existingIndex = this.localRooms.findIndex(r => r.code === room.code);
+                if (existingIndex >= 0) {
+                    this.localRooms[existingIndex] = room;
+                } else {
+                    this.localRooms.push(room);
+                }
+                localStorage.setItem('giftRooms', JSON.stringify(this.localRooms));
+
+                // 云端保存
+                if (isOnline && db) {
+                    try {
+                        updateSyncStatus('syncing');
+                        await db.ref('rooms/' + room.code).set({
+                            ...room,
+                            lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                        });
+                        updateSyncStatus('online');
+                    } catch (e) {
+                        console.error('云端保存失败', e);
+                        updateSyncStatus('offline');
+                    }
+                }
+
+                return room;
+            },
+
+            // 从云端获取房间
+            async getRoom(code) {
+                // 先查本地
+                const localRoom = this.localRooms.find(r => r.code === code);
+                
+                // 如果在线，从云端获取最新
+                if (isOnline && db) {
+                    try {
+                        updateSyncStatus('syncing');
+                        const snapshot = await db.ref('rooms/' + code).once('value');
+                        updateSyncStatus('online');
+                        
+                        if (snapshot.exists()) {
+                            const cloudRoom = snapshot.val();
+                            // 合并云端数据到本地
+                            const mergedRoom = { ...localRoom, ...cloudRoom };
+                            // 更新本地缓存
+                            const idx = this.localRooms.findIndex(r => r.code === code);
+                            if (idx >= 0) this.localRooms[idx] = mergedRoom;
+                            else this.localRooms.push(mergedRoom);
+                            localStorage.setItem('giftRooms', JSON.stringify(this.localRooms));
+                            return mergedRoom;
+                        }
+                    } catch (e) {
+                        console.error('云端获取失败', e);
+                        updateSyncStatus('offline');
+                    }
+                }
+
+                return localRoom || null;
+            },
+
+            // 添加猜测记录
+            async addGuess(code, guess) {
+                const room = await this.getRoom(code);
+                if (!room) return null;
+
+                if (!room.guesses) room.guesses = [];
+                room.guesses.push({
+                    ...guess,
+                    timestamp: Date.now(),
+                    id: Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+                });
+
+                return await this.saveRoom(room);
+            },
+
+            // 实时监听房间变化
+            listenToRoom(code, callback) {
+                if (isOnline && db) {
+                    db.ref('rooms/' + code).on('value', (snapshot) => {
+                        if (snapshot.exists()) {
+                            const room = snapshot.val();
+                            callback(room);
+                        }
+                    });
+                }
+            },
+
+            // 获取我的所有房间（合并云端和本地）
+            async getMyRooms() {
+                // 如果在线，尝试同步所有本地房间到云端
+                if (isOnline && db) {
+                    for (const room of this.localRooms) {
+                        try {
+                            const snapshot = await db.ref('rooms/' + room.code).once('value');
+                            if (!snapshot.exists()) {
+                                // 云端没有，上传本地房间
+                                await db.ref('rooms/' + room.code).set(room);
+                            }
+                        } catch (e) {
+                            console.error('同步房间失败', e);
+                        }
+                    }
+                }
+                return this.localRooms;
+            },
+
+            // 切换房间状态
+            async toggleRoomStatus(code) {
+                const room = await this.getRoom(code);
+                if (!room) return null;
+                
+                room.status = room.status === 'active' ? 'closed' : 'active';
+                return await this.saveRoom(room);
+            }
+        };
+
+        // ==================== 礼物数据库（保持之前的内容）====================
+        const giftDatabase = {
+            coffee: {
+                low: [
+                    { name: " origami 折纸滤杯", desc: "日本陶瓷滤杯，流速适中适合新手，搭配TA喜欢的浅烘豆能冲出花果香", tags: ["手冲入门", "颜值在线"], match: "咖啡器具" },
+                    { name: "咖啡闻香瓶", desc: "36味咖啡香气训练套装，帮助TA分辨咖啡里的茉莉/坚果/巧克力风味", tags: ["专业进阶", "趣味"], match: "咖啡探索" },
+                    { name: "复古搪瓷杯", desc: "欧洲老式露营杯造型，适合带咖啡去公园或露营时拍照", tags: ["户外", "复古"], match: "生活方式" }
+                ],
+                mid: [
+                    { name: "Fellow 温控壶", desc: "鹅颈细嘴设计，温控精确到1度，手冲爱好者的毕业装备", tags: ["专业", "控温"], match: "咖啡进阶" },
+                    { name: "订阅制咖啡豆", desc: "每月寄送不同产地的精品豆，附带风味卡片，像咖啡杂志一样期待每月开箱", tags: ["惊喜感", "持续"], match: "咖啡探索" },
+                    { name: "便携式浓缩咖啡机", desc: "不用电的手压意式机，露营或出差也能喝到油脂丰富的浓缩", tags: ["便携", "意式"], match: "咖啡场景" }
+                ],
+                high: [
+                    { name: "Decent 智能咖啡机", desc: "能记录每杯萃取曲线的半自动机，连接APP分享数据，咖啡极客的梦想", tags: ["智能", "数据控"], match: "咖啡极客" },
+                    { name: "家用烘豆机", desc: "小型热风烘豆机，TA可以在家烘焙生豆，体验从生豆到杯子的全过程", tags: ["DIY", "深度"], match: "咖啡制作" },
+                    { name: "咖啡师培训课程", desc: "SCA认证的基础课程，从萃取原理到拉花技巧，适合想系统学习的TA", tags: ["技能", "体验"], match: "咖啡学习" }
+                ]
+            },
+            // ... （其他类别保持之前代码不变，省略以节省空间）
+            general: {
+                low: [
+                    { name: "创意日历", desc: "每天一页冷知识或插画，让平凡的日子有点期待", tags: ["日常", "期待"], match: "通用" },
+                    { name: "香薰蜡烛", desc: "大豆蜡+天然精油，睡前点1小时，助眠又安神", tags: ["助眠", "氛围"], match: "通用" },
+                    { name: "可爱袜子套装", desc: "3双不同图案，藏在鞋子里的好心情，实用又俏皮", tags: ["实用", "隐藏"], match: "通用" }
+                ],
+                mid: [
+                    { name: "蓝牙音箱", desc: "便携防水款，洗澡或野餐都能用，音质比手机好太多", tags: ["音乐", "便携"], match: "通用" },
+                    { name: "保温杯", desc: "膳魔师或虎牌，保温12小时，提醒TA多喝热水", tags: ["健康", "贴心"], match: "通用" },
+                    { name: "桌面加湿器", desc: "冬季空调房必备，静音不打扰，防止皮肤干燥", tags: ["舒适", "健康"], match: "通用" }
+                ],
+                high: [
+                    { name: "AirPods Pro", desc: "降噪+通透模式，通勤或专注时的必备，苹果生态无缝", tags: ["降噪", "生态"], match: "通用科技" },
+                    { name: "智能手表", desc: "健康监测+消息提醒，适合关心健康的TA，运动记录也准确", tags: ["健康", "便捷"], match: "通用穿戴" },
+                    { name: "周末度假套餐", desc: "周边城市的精品酒店+晚餐，逃离日常的小假期", tags: ["放松", "体验"], match: "通用体验" }
+                ]
+            }
+        };
+
+        // 补充其他类别
+        Object.assign(giftDatabase, {
+            photography: {
+                low: [
+                    { name: "胶片相机清洁套装", desc: "气吹+镜头笔+传感器清洁棒，适合刚入坑胶片担心弄脏机器的TA", tags: ["保养", "胶片"], match: "摄影维护" },
+                    { name: "复古相机背带", desc: "手工编织的宽版背带，减压设计，搭配TA的富士或徕卡颜值翻倍", tags: ["舒适", "复古"], match: "摄影配件" },
+                    { name: "手机外接镜头", desc: "微距+广角+鱼眼三合一，让TA先用手机练构图", tags: ["手机摄影", "入门"], match: "摄影练习" }
+                ],
+                mid: [
+                    { name: "拍立得宽幅相机", desc: "比mini更大的画幅，适合拍风景或多人合影，即拍即得的仪式感", tags: ["即时成像", "社交"], match: "摄影乐趣" },
+                    { name: "照片打印机", desc: "佳能CP1500，手机直连打印6寸照片，做实体相册比存在手机里更有温度", tags: ["输出", "回忆"], match: "摄影成果" },
+                    { name: "摄影画册", desc: "森山大道或川内伦子的摄影集，放在床头翻看的审美积累", tags: ["审美", "灵感"], match: "摄影学习" }
+                ],
+                high: [
+                    { name: "理光GR3X", desc: "40mm焦段的街拍神机，能放进口袋，适合喜欢随手记录的TA", tags: ["便携", "街拍"], match: "摄影器材" },
+                    { name: "胶片扫描仪", desc: "自己在家扫描底片，保留更多细节，适合大量拍胶片的TA", tags: ["胶片", "后期"], match: "摄影流程" },
+                    { name: "摄影工作坊", desc: "周末的街头摄影课程，有老师带拍和评片，适合想突破瓶颈的TA", tags: ["学习", "实战"], match: "摄影提升" }
+                ]
+            },
+            gaming: {
+                low: [
+                    { name: "Steam冷门神作", desc: "《Hades》或《星露谷物语》等口碑游戏，比3A大作更适合碎片时间", tags: ["独立游戏", "耐玩"], match: "游戏品味" },
+                    { name: "手柄硅胶套", desc: "防手汗+防滑，长时间玩不影响操作，还能保护手柄不泛黄", tags: ["舒适", "保护"], match: "游戏体验" },
+                    { name: "游戏原声黑胶", desc: "《塞尔达》或《最终幻想》的原声黑胶，游戏迷的收藏", tags: ["音乐", "收藏"], match: "游戏文化" }
+                ],
+                mid: [
+                    { name: "精英手柄2代", desc: "可更换摇杆高度和背键，FPS和格斗游戏的操作利器", tags: ["操控", "专业"], match: "游戏装备" },
+                    { name: "游戏显示器挂灯", desc: "屏幕不反光，晚上玩游戏保护眼睛，无线遥控调节亮度", tags: ["护眼", "桌面"], match: "游戏环境" },
+                    { name: "双人成行实体版", desc: "必须双人合作的神作，适合你们一起玩，增进感情", tags: ["合作", "社交"], match: "游戏互动" }
+                ],
+                high: [
+                    { name: "PS5/Xbox Series X", desc: "次世代主机，光追画质+极速加载，游戏迷的终极梦想", tags: ["次世代", "性能"], match: "游戏主机" },
+                    { name: "电竞显示器", desc: "2K+144Hz+1ms响应，FPS玩家的物理外挂，色彩也适合设计工作", tags: ["竞技", "画质"], match: "游戏显示" },
+                    { name: "游戏舱座椅", desc: "带音响和RGB的半包围座椅，沉浸式游戏体验，科幻感外观", tags: ["沉浸", "科幻"], match: "游戏空间" }
+                ]
+            },
+            homebody: {
+                low: [
+                    { name: "重力毯", desc: "体重的10%重量，像被拥抱的感觉，改善睡眠质量，适合焦虑型人格", tags: ["助眠", "安抚"], match: "睡眠改善" },
+                    { name: "香薰机+精油", desc: "尤加利或薰衣草精油，让房间有高级酒店的味道，居家办公更放松", tags: ["氛围", "放松"], match: "居家环境" },
+                    { name: "懒人手机支架", desc: "挂在脖子上的弯曲支架，躺着看视频不砸脸，终极懒人神器", tags: ["懒人", "舒适"], match: "居家姿势" }
+                ],
+                mid: [
+                    { name: "投影仪", desc: "卧室变私人影院，侧投功能小房间也能用，冬天窝在被窝看电影", tags: ["影院", "温暖"], match: "居家娱乐" },
+                    { name: "智能窗帘电机", desc: "定时开关或语音控制，早上自然光叫醒，晚上自动遮光", tags: ["智能", "光线"], match: "居家智能" },
+                    { name: "人体工学腰靠", desc: "记忆棉+可调节高度，拯救久坐的腰椎，比换椅子划算", tags: ["健康", "办公"], match: "居家办公" }
+                ],
+                high: [
+                    { name: "按摩椅", desc: "零重力模式+全身气囊，下班回家的15分钟充电站", tags: ["放松", "全身"], match: "居家享受" },
+                    { name: "智能床垫", desc: "监测睡眠质量，自动调节软硬度和温度，科技改善睡眠", tags: ["睡眠", "科技"], match: "居家健康" },
+                    { name: "全屋音响系统", desc: "各个房间同步播放，做饭洗澡都有BGM，宅家幸福感爆棚", tags: ["音乐", "全屋"], match: "居家氛围" }
+                ]
+            }
+        });
+
+        // ==================== 应用状态 ====================
+        const store = {
+            recipientInfo: null,
+            tempOptions: [],
+            correctAnswer: null,
+            currentRoom: null
+        };
+
+        const messages = {
+            correct: [
+                { title: "默契满分！", desc: "你们之间的心电感应也太强了吧！💕" },
+                { title: "心有灵犀！", desc: "看来你真的很了解TA呢～✨" },
+                { title: "猜中了！", desc: "这就是传说中的灵魂伴侣吗？🎯" },
+                { title: "太厉害了！", desc: "你的直觉准得可怕！🔮" }
+            ],
+            wrong: [
+                { title: "差一点点！", desc: "看来是个惊喜呢，继续保持神秘感～🎭" },
+                { title: "没猜中哦！", desc: "真正的礼物还在等待着被揭晓...🎁" },
+                { title: "下次一定！", desc: "也许TA想给你个意想不到的惊喜？💝" },
+                { title: "悬念继续！", desc: "保持期待，真正的礼物更棒哦！✨" }
+            ]
+        };
+
+        // ==================== AI 逻辑（保持之前）====================
+        function analyzeInput(info) {
+            const analysis = {
+                categories: [],
+                specificTags: [],
+                priceLevel: 'mid',
+                scenario: info.occasion,
+                relation: info.relation
+            };
+
+            const text = (info.hobby + ' ' + info.extra).toLowerCase();
+            const age = parseInt(info.age) || 25;
+
+            if (/咖啡|手冲|意式|咖啡豆|拉花|咖啡馆/.test(text)) analysis.categories.push('coffee');
+            if (/拍照|摄影|相机|镜头|胶片|单反|徕卡|富士/.test(text)) analysis.categories.push('photography');
+            if (/游戏|电竞|switch|ps5|xbox|steam|王者|原神|塞尔达/.test(text)) analysis.categories.push('gaming');
+            if (/宅|居家|在家|沙发|床|睡觉/.test(text)) analysis.categories.push('homebody');
+
+            if (analysis.categories.length === 0) {
+                if (age < 25) analysis.categories.push('gaming', 'photography');
+                else if (age < 35) analysis.categories.push('coffee', 'homebody');
+                else analysis.categories.push('homebody', 'coffee');
+                
+                if (info.relation === '恋人') analysis.categories.push('coffee');
+                else if (info.relation === '家人') analysis.categories.push('homebody');
+            }
+
+            if (/新手|入门|刚开始|小白/.test(text)) analysis.specificTags.push('入门友好');
+            if (/专业|进阶|深度|发烧/.test(text)) analysis.specificTags.push('专业级');
+            if (/颜值|好看|拍照|ins风/.test(text)) analysis.specificTags.push('高颜值');
+
+            const avgBudget = (parseInt(info.budgetMin) + parseInt(info.budgetMax)) / 2;
+            if (avgBudget < 150) analysis.priceLevel = 'low';
+            else if (avgBudget > 1000) analysis.priceLevel = 'high';
+            else analysis.priceLevel = 'mid';
+
+            return analysis;
+        }
+
+        function generatePersonalizedOptions(info) {
+            const analysis = analyzeInput(info);
+            const options = [];
+            const usedNames = new Set();
+
+            const primaryCats = analysis.categories.slice(0, 2);
+            primaryCats.forEach(cat => {
+                const db = giftDatabase[cat] || giftDatabase.general;
+                const level = db[analysis.priceLevel] || db.mid;
+                let candidates = level.filter(item => !usedNames.has(item.name));
+                
+                if (analysis.specificTags.includes('入门友好')) {
+                    candidates = candidates.filter(c => c.tags.includes('入门') || c.tags.includes('基础'));
+                }
+
+                if (candidates.length > 0) {
+                    const selected = candidates[Math.floor(Math.random() * candidates.length)];
+                    options.push({
+                        ...selected,
+                        reason: `根据${cat}爱好推荐${analysis.specificTags.length > 0 ? '，契合' + analysis.specificTags[0] : ''}`,
+                        matchScore: 98,
+                        category: cat
+                    });
+                    usedNames.add(selected.name);
+                }
+            });
+
+            while (options.length < 3) {
+                const allCats = Object.keys(giftDatabase).filter(c => c !== 'general');
+                const randomCat = allCats[Math.floor(Math.random() * allCats.length)];
+                const db = giftDatabase[randomCat];
+                const level = db[analysis.priceLevel] || db.mid;
+                const available = level.filter(item => !usedNames.has(item.name));
+                
+                if (available.length > 0) {
+                    const selected = available[Math.floor(Math.random() * available.length)];
+                    options.push({
+                        ...selected,
+                        reason: "综合TA的兴趣图谱推荐",
+                        matchScore: 88,
+                        category: randomCat
+                    });
+                    usedNames.add(selected.name);
+                }
+            }
+
+            return options.slice(0, 3).map(opt => ({
+                ...opt,
+                priceTag: `¥${info.budgetMin}-${info.budgetMax}档`,
+                tags: [...opt.tags, ...analysis.specificTags.slice(0, 1), analysis.priceLevel === 'low' ? '高性价比' : analysis.priceLevel === 'high' ? '品质之选' : '实用主义']
+            }));
+        }
+
+        function regenerateWithFeedback(idx, feedback, currentInfo) {
+            const analysis = analyzeInput(currentInfo);
+            
+            if (feedback === '太贵') {
+                analysis.priceLevel = analysis.priceLevel === 'high' ? 'mid' : 'low';
+            } else if (feedback === '太便宜') {
+                analysis.priceLevel = analysis.priceLevel === 'low' ? 'mid' : 'high';
+            } else if (feedback === 'TA有了') {
+                const cat = analysis.categories[0];
+                const alternatives = Object.keys(giftDatabase).filter(c => c !== cat && c !== 'general');
+                analysis.categories = [alternatives[Math.floor(Math.random() * alternatives.length)]];
+            }
+
+            const cat = analysis.categories[0];
+            const db = giftDatabase[cat] || giftDatabase.general;
+            const level = db[analysis.priceLevel] || db.mid;
+            const selected = level[Math.floor(Math.random() * level.length)];
+            
+            return {
+                ...selected,
+                reason: `根据"${feedback}"调整后推荐`,
+                matchScore: 96,
+                priceTag: `¥${currentInfo.budgetMin}-${currentInfo.budgetMax}档`,
+                tags: [...selected.tags, '精准调整', analysis.priceLevel === 'low' ? '高性价比' : analysis.priceLevel === 'high' ? '品质之选' : '实用主义']
+            };
+        }
+
+        // ==================== UI 函数 ====================
+        window.onload = function() {
+            showHome();
+            initParallax();
+            checkUrlParams();
+        };
+
+        function initParallax() {
+            document.addEventListener('scroll', () => {
+                const scrolled = window.pageYOffset;
+                document.querySelectorAll('.parallax-bg').forEach(el => {
+                    const speed = el.getAttribute('data-speed');
+                    el.style.transform = `translateY(${scrolled * speed}px)`;
+                });
+            });
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            toast.textContent = msg;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        function showHome() {
+            const html = `
+                <div class="space-y-6 animate-fade-in">
+                    <div onclick="showCreateRoom()" class="hand-drawn bg-white p-6 cursor-pointer btn-press float-anim relative overflow-hidden group">
+                        <div class="absolute top-0 right-0 w-32 h-32 bg-pink-200 rounded-full -mr-16 -mt-16 opacity-50 group-hover:scale-110 transition-transform"></div>
+                        <div class="relative z-10">
+                            <div class="text-4xl mb-2">🎁</div>
+                            <h2 class="text-2xl font-black text-gray-800 mb-1">创建盲盒房间</h2>
+                            <p class="text-gray-600 text-sm">为TA准备一份神秘礼物，让TA来猜</p>
+                        </div>
+                        <div class="absolute bottom-4 right-4 text-2xl star">✨</div>
+                    </div>
+
+                    <div class="hand-drawn-blue bg-white p-6 float-anim-delayed">
+                        <h3 class="text-lg font-bold mb-4 flex items-center gap-2">
+                            <span>🔑</span> 输入房间码
+                        </h3>
+                        <div class="flex justify-center mb-4" id="code-inputs">
+                            ${[0,1,2,3,4,5].map(i => `
+                                <input type="text" class="code-input" maxlength="1" oninput="handleCodeInput(this, ${i})" onkeydown="handleCodeKeydown(event, ${i})">
+                            `).join('')}
+                        </div>
+                        <button onclick="enterRoom()" class="w-full bg-gradient-to-r from-blue-400 to-blue-500 text-white font-bold py-3 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press">
+                            进入房间 🚪
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+            document.getElementById('bottom-nav').classList.add('hidden');
+        }
+
+        function handleCodeInput(input, index) {
+            input.value = input.value.replace(/[^0-9]/g, '');
+            if (input.value && index < 5) {
+                document.querySelectorAll('.code-input')[index + 1].focus();
+            }
+        }
+
+        function handleCodeKeydown(e, index) {
+            if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                document.querySelectorAll('.code-input')[index - 1].focus();
+            }
+        }
+
+        function showCreateRoom() {
+            const html = `
+                <div class="animate-fade-in">
+                    <button onclick="showHome()" class="mb-4 text-gray-600 hover:text-pink-500 font-bold flex items-center gap-1">
+                        ← 返回首页
+                    </button>
+                    
+                    <div class="hand-drawn bg-white p-6 mb-6">
+                        <h2 class="text-2xl font-black mb-6 flex items-center gap-2">
+                            <span class="text-3xl">📝</span> 收礼人信息
+                        </h2>
+                        
+                        <div class="space-y-4">
+                            <div>
+                                <label class="block font-bold mb-2 text-sm">基础信息 <span class="text-pink-500">*</span></label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="text" id="recipient-age" placeholder="年龄" class="w-full p-3 border-2 border-gray-300 rounded-xl focus:border-pink-400 focus:outline-none">
+                                    <select id="recipient-gender" class="w-full p-3 border-2 border-gray-300 rounded-xl focus:border-pink-400 focus:outline-none bg-white">
+                                        <option value="">性别</option>
+                                        <option value="男">男</option>
+                                        <option value="女">女</option>
+                                        <option value="其他">其他</option>
+                                    </select>
+                                </div>
+                                <select id="recipient-relation" class="w-full p-3 border-2 border-gray-300 rounded-xl focus:border-pink-400 focus:outline-none bg-white mt-2">
+                                    <option value="">关系</option>
+                                    <option value="恋人">恋人 💕</option>
+                                    <option value="好友">好友 👯</option>
+                                    <option value="家人">家人 👨‍👩‍👧</option>
+                                    <option value="同事">同事 💼</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold mb-2 text-sm">兴趣爱好 <span class="text-pink-500">*</span> <span class="text-xs text-gray-400 font-normal">越详细越精准</span></label>
+                                <textarea id="recipient-hobby" placeholder="比如：喜欢手冲咖啡但拉花总失败、刚入坑胶片摄影、周末喜欢宅家看悬疑剧..." class="w-full p-3 border-2 border-gray-300 rounded-xl focus:border-pink-400 focus:outline-none h-24 resize-none"></textarea>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold mb-2 text-sm">送礼场景 <span class="text-pink-500">*</span></label>
+                                <select id="recipient-occasion" class="w-full p-3 border-2 border-gray-300 rounded-xl focus:border-pink-400 focus:outline-none bg-white">
+                                    <option value="">选择场合</option>
+                                    <option value="birthday">生日 🎂</option>
+                                    <option value="anniversary">纪念日 💍</option>
+                                    <option value="festival">节日 🎄</option>
+                                    <option value="daily">日常惊喜 ✨</option>
+                                </select>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold mb-2 text-sm">预算区间 <span class="text-pink-500">*</span></label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <input type="number" id="budget-min" placeholder="最低 ¥" class="w-full p-3 border-2 border-gray-300 rounded-xl focus:border-pink-400 focus:outline-none">
+                                    <input type="number" id="budget-max" placeholder="最高 ¥" class="w-full p-3 border-2 border-gray-300 rounded-xl focus:border-pink-400 focus:outline-none">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block font-bold mb-2 text-sm">其他信息（选填）</label>
+                                <textarea id="recipient-extra" placeholder="比如：最近加班很多颈椎不好/极简主义者讨厌多余包装..." class="w-full p-3 border-2 border-gray-300 rounded-xl focus:border-pink-400 focus:outline-none h-20 resize-none"></textarea>
+                            </div>
+                        </div>
+
+                        <button onclick="generateOptions()" class="w-full mt-6 bg-gradient-to-r from-pink-400 to-pink-500 text-white font-bold py-4 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press text-lg">
+                            AI生成专属推荐 ✨
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        function generateOptions() {
+            const age = document.getElementById('recipient-age').value;
+            const relation = document.getElementById('recipient-relation').value;
+            const hobby = document.getElementById('recipient-hobby').value;
+            const occasion = document.getElementById('recipient-occasion').value;
+            const budgetMin = document.getElementById('budget-min').value;
+            const budgetMax = document.getElementById('budget-max').value;
+
+            if (!age || !relation || !hobby || !occasion || !budgetMin || !budgetMax) {
+                alert('请填写所有必填项哦～');
+                return;
+            }
+
+            store.recipientInfo = {
+                age, relation, hobby, occasion, budgetMin, budgetMax,
+                extra: document.getElementById('recipient-extra').value,
+                gender: document.getElementById('recipient-gender').value
+            };
+
+            const html = `
+                <div class="flex flex-col items-center justify-center py-20">
+                    <div class="flex gap-2 mb-4">
+                        <div class="w-4 h-4 bg-pink-400 rounded-full loading-dot"></div>
+                        <div class="w-4 h-4 bg-blue-400 rounded-full loading-dot"></div>
+                        <div class="w-4 h-4 bg-yellow-400 rounded-full loading-dot"></div>
+                    </div>
+                    <p class="font-bold text-gray-600">AI正在深度分析...</p>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+
+            setTimeout(() => {
+                store.tempOptions = generatePersonalizedOptions(store.recipientInfo);
+                showOptionsReview();
+            }, 1500);
+        }
+
+        function showOptionsReview() {
+            const html = `
+                <div class="animate-fade-in">
+                    <button onclick="showCreateRoom()" class="mb-4 text-gray-600 hover:text-pink-500 font-bold flex items-center gap-1">
+                        ← 重新填写
+                    </button>
+                    
+                    <div class="hand-drawn bg-white p-6 mb-6">
+                        <h2 class="text-2xl font-black mb-2">🎯 专属推荐</h2>
+                        <p class="text-gray-500 text-sm mb-6">基于"${store.recipientInfo.hobby.substring(0, 20)}..."</p>
+
+                        <div class="space-y-4 mb-6">
+                            ${store.tempOptions.map((opt, idx) => `
+                                <div class="option-card hand-drawn-pink bg-gradient-to-br from-pink-50 to-white p-4" id="ai-option-${idx}">
+                                    <div class="flex justify-between items-start mb-2">
+                                        <div>
+                                            <span class="tag-pill price-tag text-xs">${opt.priceTag}</span>
+                                            <span class="tag-pill match-tag text-xs">${opt.matchScore}%匹配</span>
+                                            <h3 class="font-bold text-lg mt-1">${opt.name}</h3>
+                                        </div>
+                                        <button onclick="removeOption(${idx})" class="text-red-400 hover:text-red-600 font-bold text-xl">×</button>
+                                    </div>
+                                    <p class="text-gray-600 text-sm mb-2">${opt.desc}</p>
+                                    <div class="flex flex-wrap gap-1 mb-2">
+                                        ${opt.tags.map(tag => `<span class="tag-pill feature-tag text-xs">${tag}</span>`).join('')}
+                                    </div>
+                                    <button onclick="showFeedback(${idx})" class="text-xs text-pink-500 font-bold">换一换 🔄</button>
+                                    <div id="feedback-${idx}" class="hidden mt-2 pt-2 border-t border-pink-200">
+                                        <div class="flex flex-wrap gap-2">
+                                            ${['太贵', '太便宜', 'TA有了', '不符合气质'].map(fb => `
+                                                <span onclick="handleFeedback(${idx}, '${fb}')" class="feedback-tag bg-white border-2 border-gray-300 px-2 py-1 rounded-full text-xs">${fb}</span>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+
+                        <div class="hand-drawn-blue bg-blue-50 p-4 mb-6">
+                            <h3 class="font-bold mb-2">✏️ 添加你的礼物（可选）</h3>
+                            <input type="text" id="my-gift-name" placeholder="礼物名称" class="w-full p-2 border-2 rounded-xl mb-2">
+                            <textarea id="my-gift-desc" placeholder="描述..." class="w-full p-2 border-2 rounded-xl h-16 mb-2"></textarea>
+                            <button onclick="addMyGift()" class="w-full bg-blue-400 text-white font-bold py-2 rounded-xl btn-press">加入 ➕</button>
+                        </div>
+
+                        <button onclick="confirmOptions()" class="w-full bg-gradient-to-r from-pink-400 to-pink-500 text-white font-bold py-4 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press text-lg">
+                            生成房间 🎉
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        function showFeedback(idx) {
+            document.getElementById(`feedback-${idx}`).classList.toggle('hidden');
+        }
+
+        function handleFeedback(idx, feedback) {
+            const newOption = regenerateWithFeedback(idx, feedback, store.recipientInfo);
+            store.tempOptions[idx] = newOption;
+            showOptionsReview();
+        }
+
+        function removeOption(idx) {
+            if (store.tempOptions.length <= 1) {
+                alert('至少保留一个选项');
+                return;
+            }
+            store.tempOptions.splice(idx, 1);
+            showOptionsReview();
+        }
+
+        function addMyGift() {
+            const name = document.getElementById('my-gift-name').value;
+            const desc = document.getElementById('my-gift-desc').value;
+            if (!name) return alert('请输入名称');
+            
+            store.tempOptions.push({
+                name, desc: desc || '特别的心意',
+                tags: ['你的心意'], isCustom: true,
+                priceTag: '专属', matchScore: 100,
+                reason: '你挑选的'
+            });
+            store.correctAnswer = name;
+            showOptionsReview();
+        }
+
+        async function confirmOptions() {
+            if (store.tempOptions.length < 4) {
+                if (confirm(`只有${store.tempOptions.length}个，AI再生成${4-store.tempOptions.length}个？`)) {
+                    while (store.tempOptions.length < 4) {
+                        const extra = generatePersonalizedOptions(store.recipientInfo)[0];
+                        if (!store.tempOptions.find(o => o.name === extra.name)) {
+                            store.tempOptions.push(extra);
+                        }
+                    }
+                } else return;
+            }
+
+            const roomCode = Math.floor(100000 + Math.random() * 900000).toString();
+            if (!store.correctAnswer) {
+                store.correctAnswer = store.tempOptions[Math.floor(Math.random() * store.tempOptions.length)].name;
+            }
+
+            const room = {
+                code: roomCode,
+                options: [...store.tempOptions],
+                correctAnswer: store.correctAnswer,
+                recipientInfo: store.recipientInfo,
+                createdAt: Date.now(),
+                status: 'active',
+                guesses: [],
+                creatorId: localStorage.getItem('deviceId') || generateDeviceId()
+            };
+
+            // 保存到云端
+            await DataStore.saveRoom(room);
+            showRoomCreated(roomCode);
+        }
+
+        function generateDeviceId() {
+            const id = 'device_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+            localStorage.setItem('deviceId', id);
+            return id;
+        }
+
+        function showRoomCreated(code) {
+            const shareText = `我为你准备了一个神秘礼物盲盒！快来猜猜我要送你什么～ 房间码：${code}`;
+            const shareUrl = `${window.location.origin}${window.location.pathname}?room=${code}`;
+            
+            const html = `
+                <div class="animate-fade-in text-center py-8">
+                    <div class="text-6xl mb-4 result-pop">🎉</div>
+                    <h2 class="text-2xl font-black mb-2">房间创建成功！</h2>
+                    
+                    <div class="hand-drawn bg-white p-6 mb-6 w-full">
+                        <p class="text-gray-500 text-sm mb-2">房间码</p>
+                        <div class="text-5xl font-black text-pink-500 tracking-widest mb-4" style="font-family: monospace;">${code}</div>
+                        <div class="bg-gray-50 p-3 rounded-lg text-left">
+                            <p class="text-xs text-gray-400">分享文案：</p>
+                            <p class="text-sm text-gray-600">${shareText}</p>
+                        </div>
+                    </div>
+
+                    <div class="space-y-3">
+                        <button onclick="shareToWeChat('${code}', '${shareText}')" class="share-btn w-full bg-green-500 text-white font-bold py-3 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press">
+                            💬 分享到微信
+                        </button>
+                        <button onclick="copyLink('${shareUrl}', '${shareText}')" class="share-btn w-full bg-blue-500 text-white font-bold py-3 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press">
+                            🔗 复制链接
+                        </button>
+                        <button onclick="copyCode('${code}')" class="share-btn w-full bg-white text-gray-800 font-bold py-3 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press">
+                            📋 复制房间码
+                        </button>
+                        <button onclick="showMyRooms()" class="w-full bg-gray-100 text-gray-600 font-bold py-3 rounded-2xl border-2 border-gray-300 btn-press">
+                            我的房间 🏠
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+            copyToClipboard(shareText);
+        }
+
+        function shareToWeChat(code, text) {
+            if (navigator.share) {
+                navigator.share({ title: '心意盲盒', text: text, url: window.location.href })
+                    .catch(() => { copyToClipboard(text); showToast('已复制，去微信粘贴'); });
+            } else {
+                copyToClipboard(text);
+                showToast('已复制，去微信粘贴');
+            }
+        }
+
+        function copyLink(url, text) {
+            copyToClipboard(`${text} ${url}`);
+            showToast('链接已复制！');
+        }
+
+        function copyCode(code) {
+            copyToClipboard(code);
+            showToast('房间码已复制！');
+        }
+
+        function copyToClipboard(text) {
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(text);
+            } else {
+                const input = document.createElement('input');
+                input.value = text;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+            }
+        }
+
+        // ==================== 核心：进入房间（联机）====================
+        async function enterRoom() {
+            const inputs = document.querySelectorAll('.code-input');
+            const code = Array.from(inputs).map(i => i.value).join('');
+            
+            if (code.length !== 6) {
+                alert('请输入完整的6位房间码');
+                return;
+            }
+
+            showToast('正在连接房间...');
+            
+            // 从云端获取房间
+            const room = await DataStore.getRoom(code);
+            
+            if (!room) {
+                alert('房间不存在或已关闭，检查房间码是否正确');
+                return;
+            }
+
+            if (room.status === 'closed') {
+                showClosedPage();
+                return;
+            }
+
+            store.currentRoom = room;
+            
+            // 开始实时监听房间变化
+            DataStore.listenToRoom(code, (updatedRoom) => {
+                if (updatedRoom) {
+                    store.currentRoom = updatedRoom;
+                    // 如果在房间页面，可以实时更新猜测列表（可选）
+                }
+            });
+            
+            showGuessPage(room);
+        }
+
+        function showGuessPage(room) {
+            const shuffledOptions = [...room.options].sort(() => 0.5 - Math.random());
+            
+            const html = `
+                <div class="animate-fade-in">
+                    <div class="text-center mb-6">
+                        <div class="text-4xl mb-2">🎁</div>
+                        <h2 class="text-xl font-black">猜猜哪个是TA要送的礼物？</h2>
+                        <p class="text-gray-500 text-sm mt-1">房间码：${room.code}</p>
+                    </div>
+
+                    <div class="space-y-3 mb-6" id="guess-options">
+                        ${shuffledOptions.map((opt, idx) => `
+                            <div class="option-card hand-drawn bg-white p-4" onclick="selectOption(this, '${opt.name}')" data-name="${opt.name}">
+                                <div class="flex items-start gap-3">
+                                    <div class="w-8 h-8 rounded-full border-2 border-gray-300 flex items-center justify-center flex-shrink-0 mt-1 option-circle">
+                                        <div class="w-4 h-4 rounded-full bg-pink-400 opacity-0 transition-opacity"></div>
+                                    </div>
+                                    <div class="flex-1">
+                                        <div class="flex items-center gap-2 mb-1 flex-wrap">
+                                            <h3 class="font-bold text-lg">${opt.name}</h3>
+                                            ${opt.priceTag ? `<span class="tag-pill price-tag text-xs">${opt.priceTag}</span>` : ''}
+                                        </div>
+                                        <p class="text-gray-600 text-sm leading-relaxed mb-2">${opt.desc}</p>
+                                        ${opt.tags ? `<div class="flex flex-wrap gap-1">${opt.tags.slice(0,3).map(t => `<span class="tag-pill feature-tag text-xs">${t}</span>`).join('')}</div>` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+
+                    <button id="confirm-guess" onclick="submitGuess()" class="w-full bg-gray-300 text-white font-bold py-4 rounded-2xl border-2 border-gray-400 cursor-not-allowed" disabled>
+                        先选一个选项 👆
+                    </button>
+                    
+                    ${room.guesses && room.guesses.length > 0 ? `
+                    <div class="mt-6 p-4 bg-blue-50 rounded-xl border-2 border-blue-200">
+                        <p class="text-sm text-blue-600 font-bold mb-2">已有 ${room.guesses.length} 人参与猜测</p>
+                        <p class="text-xs text-blue-400">快来加入吧！</p>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+            document.getElementById('bottom-nav').classList.remove('hidden');
+        }
+
+        let selectedOption = null;
+        function selectOption(el, name) {
+            document.querySelectorAll('.option-card').forEach(c => {
+                c.classList.remove('selected');
+                c.querySelector('.option-circle div').classList.add('opacity-0');
+            });
+            el.classList.add('selected');
+            el.querySelector('.option-circle div').classList.remove('opacity-0');
+            selectedOption = name;
+            
+            const btn = document.getElementById('confirm-guess');
+            btn.disabled = false;
+            btn.classList.remove('bg-gray-300', 'border-gray-400', 'cursor-not-allowed');
+            btn.classList.add('bg-gradient-to-r', 'from-pink-400', 'to-pink-500', 'border-gray-800', 'btn-press', 'shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)]');
+            btn.textContent = '确认选择 🎯';
+        }
+
+        async function submitGuess() {
+            if (!selectedOption || !store.currentRoom) return;
+            
+            const isCorrect = selectedOption === store.currentRoom.correctAnswer;
+            const msgList = isCorrect ? messages.correct : messages.wrong;
+            const msg = msgList[Math.floor(Math.random() * msgList.length)];
+            
+            // 保存猜测到云端
+            await DataStore.addGuess(store.currentRoom.code, {
+                option: selectedOption,
+                isCorrect: isCorrect,
+                deviceId: localStorage.getItem('deviceId') || 'anonymous'
+            });
+
+            const html = `
+                <div class="animate-fade-in text-center py-10">
+                    <div class="text-6xl mb-4 result-pop">${isCorrect ? '🎉' : '😉'}</div>
+                    <h2 class="text-3xl font-black mb-2 ${isCorrect ? 'text-pink-500' : 'text-blue-500'}">${msg.title}</h2>
+                    <p class="text-gray-600 mb-8 text-lg">${msg.desc}</p>
+                    
+                    <div class="hand-drawn bg-white p-6 mb-6">
+                        <p class="text-gray-500 text-sm mb-2">你选择了</p>
+                        <p class="font-bold text-xl">${selectedOption}</p>
+                        ${isCorrect ? '<div class="mt-2 text-pink-500 font-bold">✓ 猜对了！</div>' : '<div class="mt-2 text-blue-500 font-bold">✗ 没猜中</div>'}
+                    </div>
+
+                    <div class="space-y-3">
+                        <button onclick="showCreateRoom()" class="w-full bg-gradient-to-r from-pink-400 to-pink-500 text-white font-bold py-3 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press">
+                            我也创建一个 ✨
+                        </button>
+                        <button onclick="showHome()" class="w-full bg-white text-gray-800 font-bold py-3 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press">
+                            返回首页 🏠
+                        </button>
+                    </div>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        async function showMyRooms() {
+            const rooms = await DataStore.getMyRooms();
+            const myDeviceId = localStorage.getItem('deviceId');
+            
+            // 过滤出我创建的房间
+            const myRooms = rooms.filter(r => r.creatorId === myDeviceId);
+            
+            const html = `
+                <div class="animate-fade-in">
+                    <button onclick="showHome()" class="mb-4 text-gray-600 hover:text-pink-500 font-bold flex items-center gap-1">
+                        ← 返回首页
+                    </button>
+                    
+                    <h2 class="text-2xl font-black mb-6 flex items-center gap-2">
+                        <span class="text-3xl">🎁</span> 我的房间 (${myRooms.length})
+                    </h2>
+
+                    ${myRooms.length === 0 ? `
+                        <div class="text-center py-10 text-gray-400">
+                            <div class="text-4xl mb-2">📭</div>
+                            <p>还没有创建房间</p>
+                            <button onclick="showCreateRoom()" class="mt-4 text-pink-500 font-bold underline">立即创建</button>
+                        </div>
+                    ` : `
+                        <div class="space-y-4">
+                            ${myRooms.map(room => {
+                                const guessCount = room.guesses ? room.guesses.length : 0;
+                                const correctCount = room.guesses ? room.guesses.filter(g => g.isCorrect).length : 0;
+                                return `
+                                    <div class="hand-drawn bg-white p-4 relative ${room.status === 'closed' ? 'opacity-50' : ''}">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <div>
+                                                <span class="text-2xl font-black text-pink-500" style="font-family: monospace;">${room.code}</span>
+                                                ${room.status === 'closed' ? 
+                                                    '<span class="text-xs bg-gray-400 text-white px-2 py-1 rounded-full ml-2">已关闭</span>' : 
+                                                    '<span class="text-xs bg-green-400 text-white px-2 py-1 rounded-full ml-2">进行中</span>'
+                                                }
+                                            </div>
+                                            <button onclick="toggleRoomStatus('${room.code}')" class="text-gray-400 hover:text-red-500 text-xl">
+                                                ${room.status === 'active' ? '🔒' : '🔓'}
+                                            </button>
+                                        </div>
+                                        
+                                        <div class="text-sm text-gray-600 mb-2">
+                                            <p>猜测：${guessCount} 次 | 猜中：${correctCount} 次</p>
+                                            <p class="text-xs text-gray-400">${new Date(room.createdAt).toLocaleDateString()}</p>
+                                        </div>
+                                        
+                                        ${guessCount > 0 ? `
+                                            <div class="border-t-2 border-pink-100 pt-2 mt-2">
+                                                <p class="text-xs font-bold text-gray-500 mb-1">最近猜测：</p>
+                                                ${room.guesses.slice(-2).map(g => `
+                                                    <div class="flex justify-between text-xs">
+                                                        <span class="truncate flex-1">${g.option}</span>
+                                                        <span class="${g.isCorrect ? 'text-pink-500' : 'text-blue-500'} font-bold">
+                                                            ${g.isCorrect ? '✓' : '✗'}
+                                                        </span>
+                                                    </div>
+                                                `).join('')}
+                                            </div>
+                                        ` : '<p class="text-xs text-gray-400 italic">暂无人猜测</p>'}
+                                        
+                                        ${room.status === 'active' ? `
+                                        <button onclick="showRoomCreated('${room.code}')" class="mt-3 w-full bg-pink-100 text-pink-600 font-bold py-2 rounded-lg text-sm border-2 border-pink-300 btn-press">
+                                            分享房间 🔗
+                                        </button>
+                                        ` : ''}
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    `}
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+            document.getElementById('bottom-nav').classList.remove('hidden');
+        }
+
+        async function toggleRoomStatus(code) {
+            await DataStore.toggleRoomStatus(code);
+            showMyRooms();
+        }
+
+        function showClosedPage() {
+            const html = `
+                <div class="animate-fade-in text-center py-20">
+                    <div class="text-6xl mb-4 float-anim">🙈</div>
+                    <h2 class="text-2xl font-black mb-2">来晚啦～</h2>
+                    <p class="text-gray-600 mb-6">这个房间已经被主人关闭了</p>
+                    <button onclick="showHome()" class="bg-gradient-to-r from-pink-400 to-pink-500 text-white font-bold py-3 px-8 rounded-2xl border-2 border-gray-800 shadow-[4px_4px_0px_0px_rgba(0,0,0,0.2)] btn-press">
+                        返回首页 🏠
+                    </button>
+                </div>
+            `;
+            document.getElementById('main-content').innerHTML = html;
+        }
+
+        function checkUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            const roomCode = params.get('room');
+            if (roomCode && roomCode.length === 6) {
+                setTimeout(async () => {
+                    // 自动进入房间
+                    const room = await DataStore.getRoom(roomCode);
+                    if (room && room.status === 'active') {
+                        store.currentRoom = room;
+                        DataStore.listenToRoom(roomCode, (r) => { if(r) store.currentRoom = r; });
+                        showGuessPage(room);
+                        showToast('已通过链接进入房间');
+                    } else if (room && room.status === 'closed') {
+                        showClosedPage();
+                    } else {
+                        showToast('房间不存在');
+                    }
+                    // 清除URL参数
+                    window.history.replaceState({}, document.title, window.location.pathname);
+                }, 500);
+            }
+        }
+
+        const style = document.createElement('style');
+        style.textContent = `
+            .animate-fade-in { animation: fadeIn 0.5s ease-out; }
+            @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        `;
+        document.head.appendChild(style);
+    </script>
+</body>
+</html>
